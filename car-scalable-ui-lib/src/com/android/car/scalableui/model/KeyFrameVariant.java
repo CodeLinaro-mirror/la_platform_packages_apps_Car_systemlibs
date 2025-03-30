@@ -13,22 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.car.scalableui.model;
 
 import android.animation.FloatEvaluator;
 import android.animation.RectEvaluator;
+import android.graphics.Insets;
 import android.graphics.Rect;
-import android.util.AttributeSet;
-import android.util.Xml;
 
-import com.android.car.scalableui.manager.Event;
-import com.android.car.scalableui.manager.KeyFrameEvent;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,27 +32,19 @@ import java.util.Objects;
  * A {@link Variant} that interpolates between different variants based on a fraction value.
  *
  * <p>This class defines a series of keyframes, each associated with a {@link Variant} and a frame
- * position. The {@link #setFraction(float)} method sets the current fraction, which determines
- * the interpolation between keyframes.</p>
+ * position. The {@link #setFraction(float)} method sets the current fraction, which determines the
+ * interpolation between keyframes.</p>
  *
  * <p>KeyFrameVariant allows for smooth transitions between different panel states by interpolating
  * properties such as bounds, visibility, and alpha.
  */
 public class KeyFrameVariant extends Variant {
-    static final String KEY_FRAME_VARIANT_TAG = "KeyFrameVariant";
-    private static final String ID_ATTRIBUTE = "id";
-    private static final String PARENT_ATTRIBUTE = "parent";
-    private static final String KEY_FRAME_TAG = "KeyFrame";
-    private static final String FRAME_ATTRIBUTE = "frame";
-    private static final String VARIANT_ATTRIBUTE = "variant";
-
+    private static final String TAG = KeyFrameVariant.class.getSimpleName();
     private float mFraction;
     private final RectEvaluator mRectEvaluator = new RectEvaluator();
     private final FloatEvaluator mFloatEvaluator = new FloatEvaluator();
 
-    /**
-     * Represents a single keyframe in a {@link KeyFrameVariant}.
-     */
+    /** Represents a single keyframe in a {@link KeyFrameVariant}. */
     public static class KeyFrame {
         int mFramePosition;
         Variant mVariant;
@@ -69,43 +55,58 @@ public class KeyFrameVariant extends Variant {
          * @param framePosition The position of the keyframe (0-100).
          * @param variant       The variant associated with this keyframe.
          */
-        public KeyFrame(int framePosition, Variant variant) {
+        public KeyFrame(int framePosition, @NonNull Variant variant) {
             mFramePosition = framePosition;
             mVariant = variant;
         }
 
-        /**
-         * Reads a {@link KeyFrame} from an XMLPullParser.
-         *
-         * @param panelState The current panel state.
-         * @param parser     The XML parser.
-         * @return The created KeyFrame.
-         * @throws XmlPullParserException If an error occurs during XML parsing.
-         * @throws IOException            If an I/O error occurs while reading the XML.
-         */
-        private static KeyFrame create(PanelState panelState, XmlPullParser parser)
-                throws XmlPullParserException, IOException {
-            parser.require(XmlPullParser.START_TAG, null, KEY_FRAME_TAG);
-            AttributeSet attrs = Xml.asAttributeSet(parser);
-            int frame = attrs.getAttributeIntValue(null, FRAME_ATTRIBUTE, 0);
-            String variant = attrs.getAttributeValue(null, VARIANT_ATTRIBUTE);
-            parser.nextTag();
-            parser.require(XmlPullParser.END_TAG, null, KEY_FRAME_TAG);
-            Variant panelVariant = panelState.getVariant(variant);
-            return new KeyFrameVariant.KeyFrame(frame, panelVariant);
+        /** Builder for {@link KeyFrameVariant} objects. */
+        public static class Builder {
+            private final int mFramePosition;
+            private final Variant mVariant;
+
+            public Builder(int framePosition, @NonNull Variant variant) {
+                mVariant = variant;
+                mFramePosition = framePosition;
+            }
+
+            /** Returns the {@link KeyFrameVariant} instance */
+            public KeyFrame build() {
+                if (mVariant == null) {
+                    throw new IllegalStateException("Variant must be set for KeyFrame");
+                }
+                return new KeyFrame(mFramePosition, mVariant);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "KeyFrame{"
+                    + "mFramePosition=" + mFramePosition
+                    + ", mVariant=" + mVariant
+                    + '}';
         }
     }
 
     private final List<KeyFrame> mKeyFrames = new ArrayList<>();
 
     /**
-     * Constructor for KeyFrameVariant.
+     * Constructor for KeyFrameVariant. Package-private, use the Builder.
      *
-     * @param id     The ID of this variant.
+     * @param id   The ID of this variant.
      * @param base The base variant to inherit properties from.
      */
-    public KeyFrameVariant(String id, Variant base) {
+    KeyFrameVariant(@NonNull String id, @NonNull Variant base) {
         super(id, base);
+    }
+
+    /**
+     * Constructor for KeyFrameVariant. Package-private, use the Builder.
+     *
+     * @param id The ID of this variant.
+     */
+    KeyFrameVariant(@NonNull String id) {
+        super(id);
     }
 
     /**
@@ -113,7 +114,7 @@ public class KeyFrameVariant extends Variant {
      *
      * @param keyFrame The keyframe to add.
      */
-    public void addKeyFrame(KeyFrame keyFrame) {
+    public void addKeyFrame(@NonNull KeyFrame keyFrame) {
         mKeyFrames.add(keyFrame);
         mKeyFrames.sort(Comparator.comparingInt(o -> o.mFramePosition));
     }
@@ -132,6 +133,8 @@ public class KeyFrameVariant extends Variant {
      *
      * @return The interpolated bounds.
      */
+    @Override
+    @NonNull
     public Rect getBounds() {
         return getBounds(mFraction);
     }
@@ -141,6 +144,7 @@ public class KeyFrameVariant extends Variant {
      *
      * @return The interpolated visibility.
      */
+    @Override
     public boolean isVisible() {
         return getVisibility(mFraction);
     }
@@ -150,12 +154,13 @@ public class KeyFrameVariant extends Variant {
      *
      * @return The interpolated alpha.
      */
+    @Override
     public float getAlpha() {
         return getAlpha(mFraction);
     }
 
     @Override
-    public void updateFromEvent(Event event) {
+    public void updateFromEvent(@Nullable Event event) {
         if (event instanceof KeyFrameEvent keyFrameEvent) {
             setFraction(keyFrameEvent.getFraction());
         }
@@ -172,9 +177,10 @@ public class KeyFrameVariant extends Variant {
      * @param fraction The fraction value (between 0 and 1).
      * @return The keyframe before the given fraction, or null if there are no keyframes.
      */
+    @Nullable
     private KeyFrame before(float fraction) {
         if (mKeyFrames.isEmpty()) return null;
-        KeyFrame current = mKeyFrames.get(0);
+        KeyFrame current = mKeyFrames.getFirst();
         for (KeyFrame keyFrame : mKeyFrames) {
             if (keyFrame.mFramePosition >= fraction * 100) {
                 return current;
@@ -186,9 +192,11 @@ public class KeyFrameVariant extends Variant {
 
     /**
      * Returns the key frame after the fraction
+     *
      * @param fraction The fraction value (between 0 and 1).
      * @return The key frame
      */
+    @Nullable
     private KeyFrame after(float fraction) {
         if (mKeyFrames.isEmpty()) return null;
         for (KeyFrame keyFrame : mKeyFrames) {
@@ -206,8 +214,8 @@ public class KeyFrameVariant extends Variant {
      * value (between 0 and 1). It calculates the fraction between the two keyframes, effectively
      * normalizing the overall fraction to the range between the keyframes.
      *
-     * <p>For example, if framePosition1 is 20, framePosition2 is 80, and fraction is 0.5, the
-     * result will be 0.75, because 0.5 lies at 75% of the range between 20 and 80.
+     * <p>For example, if framePosition1 is 0, framePosition2 is 80, and fraction is 0.5, the
+     * result will be 0.75, because 0.5 lies at 62.5% of the range between 0 and 80.
      *
      * @param framePosition1 The position of the first keyframe (0-100).
      * @param framePosition2 The position of the second keyframe (0-100).
@@ -221,23 +229,40 @@ public class KeyFrameVariant extends Variant {
         return (fraction - framePosition1) / (framePosition2 - framePosition1);
     }
 
-
     /**
      * Returns the interpolated bounds for the given fraction.
      *
      * @param fraction The fraction value (between 0 and 1).
      * @return The interpolated bounds.
      */
+    @NonNull
     private Rect getBounds(float fraction) {
         if (mKeyFrames.isEmpty()) return new Rect();
         KeyFrame keyFrame1 = before(fraction);
         Rect bounds1 = Objects.requireNonNull(keyFrame1).mVariant.getBounds();
         KeyFrame keyFrame2 = after(fraction);
         Rect bounds2 = Objects.requireNonNull(keyFrame2).mVariant.getBounds();
-        float fractionInBetween = getKeyFrameFraction(keyFrame1.mFramePosition,
-                keyFrame2.mFramePosition, fraction);
+        float fractionInBetween =
+                getKeyFrameFraction(
+                        keyFrame1.mFramePosition, keyFrame2.mFramePosition, fraction);
         Rect rect = mRectEvaluator.evaluate(fractionInBetween, bounds1, bounds2);
         return new Rect(rect.left, rect.top, rect.right, rect.bottom);
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("KeyFrameVariant{ mid=")
+                .append(mId)
+                .append(", mFraction=")
+                .append(mFraction);
+        for (KeyFrame keyFrame : mKeyFrames) {
+            sb.append(", keyFrame=").append(keyFrame);
+        }
+        sb.append(", layer=").append(getLayer());
+        sb.append(", visibility=").append(isVisible());
+        sb.append("}");
+        return sb.toString();
     }
 
     /**
@@ -270,32 +295,63 @@ public class KeyFrameVariant extends Variant {
         return mFloatEvaluator.evaluate(fraction, alpha1, alpha2);
     }
 
-    /**
-     * Creates a {@link KeyFrameVariant} from an XMLPullParser.
-     *
-     * @param panelState The current panel state.
-     * @param parser     The XML parser.
-     * @return The created KeyFrameVariant.
-     * @throws XmlPullParserException If an error occurs during XML parsing.
-     * @throws IOException            If an I/O error occurs while reading the XML.
-     */
-    static KeyFrameVariant create(PanelState panelState, XmlPullParser parser)
-            throws XmlPullParserException, IOException {
-        parser.require(XmlPullParser.START_TAG, null, KEY_FRAME_VARIANT_TAG);
-        AttributeSet attrs = Xml.asAttributeSet(parser);
-        String id = attrs.getAttributeValue(null, ID_ATTRIBUTE);
-        String parentStr = attrs.getAttributeValue(null, PARENT_ATTRIBUTE);
-        Variant parent = panelState.getVariant(parentStr);
-        KeyFrameVariant result = new KeyFrameVariant(id, parent);
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.getEventType() != XmlPullParser.START_TAG) continue;
-            String name = parser.getName();
-            if (name.equals(KEY_FRAME_TAG)) {
-                result.addKeyFrame(KeyFrame.create(panelState, parser));
-            } else {
-                XmlPullParserHelper.skip(parser);
-            }
+    /** Builder for {@link KeyFrameVariant} objects. */
+    public static class Builder extends Variant.Builder {
+        private List<KeyFrame> mKeyFrames = new ArrayList<>();
+
+        public Builder(@NonNull String id) {
+            super(id);
         }
-        return result;
+
+        /** Adds keyframe */
+        public Builder addKeyFrame(@NonNull KeyFrame keyFrame) {
+            mKeyFrames.add(keyFrame);
+            return this;
+        }
+
+        /** Sets keyframes */
+        public Builder setKeyFrames(@NonNull List<KeyFrame> keyFrames) {
+            mKeyFrames = new ArrayList<>(keyFrames); // Defensive copy
+            return this;
+        }
+
+        /** Returns the {@link KeyFrameVariant} instance */
+        @Override
+        @NonNull
+        public KeyFrameVariant build() {
+            KeyFrameVariant variant;
+            if (mParent != null) {
+                variant = new KeyFrameVariant(mId, mParent);
+            } else {
+                variant = new KeyFrameVariant(mId);
+            }
+
+            if (mAlpha != null) {
+                variant.setAlpha(mAlpha);
+            }
+            if (mIsVisible != null) {
+                variant.setVisibility(mIsVisible);
+            }
+            if (mLayer != null) {
+                variant.setLayer(mLayer);
+            }
+            if (mBounds != null) {
+                variant.setBounds(new Rect(mBounds)); // Defensive copy
+            }
+            if (mCornerRadius != null) {
+                variant.setCornerRadius(mCornerRadius);
+            }
+            if (mInsets != null) {
+                variant.setInsets(
+                        Insets.of(mInsets.left, mInsets.top, mInsets.right, mInsets.bottom));
+            }
+
+            // Sort keyframes by frame position after adding them all.
+            mKeyFrames.sort(Comparator.comparingInt(o -> o.mFramePosition));
+            for (KeyFrame keyFrame : mKeyFrames) {
+                variant.addKeyFrame(keyFrame);
+            }
+            return variant;
+        }
     }
 }
