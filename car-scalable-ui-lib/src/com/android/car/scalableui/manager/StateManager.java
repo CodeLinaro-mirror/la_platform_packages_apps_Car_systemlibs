@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.car.scalableui.manager;
 
 import android.animation.Animator;
@@ -25,7 +24,10 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import com.android.car.scalableui.loader.xml.XmlModelLoader;
+import com.android.car.scalableui.model.Event;
 import com.android.car.scalableui.model.PanelState;
+import com.android.car.scalableui.model.PanelTransaction;
 import com.android.car.scalableui.model.Transition;
 import com.android.car.scalableui.model.Variant;
 import com.android.car.scalableui.panel.Panel;
@@ -43,13 +45,13 @@ import java.util.Map;
  * based on their current state.
  */
 public class StateManager {
-
     private static final String TAG = StateManager.class.getSimpleName();
-
-    private static final StateManager sInstance = new StateManager();
     private static final boolean DEBUG = Build.IS_DEBUGGABLE;
 
+    private static final StateManager sInstance = new StateManager();
+
     private final Map<String, PanelState> mPanelStates;
+
     private StateManager() {
         mPanelStates = new HashMap<>();
     }
@@ -76,7 +78,14 @@ public class StateManager {
         if (DEBUG) {
             Log.d(TAG, "addState: stateResId " + stateResId);
         }
-        PanelState panelState = PanelState.load(context, stateResId);
+        XmlModelLoader loader = new XmlModelLoader(context);
+        addState(loader.createPanelState(stateResId));
+    }
+
+    /**
+     * Adds a new panel state definition.
+     */
+    public static void addState(PanelState panelState) {
         if (sInstance.mPanelStates.put(panelState.getId(), panelState) != null) {
             if (DEBUG) {
                 Log.w(TAG, "Previous PanelState with id=" + panelState.getId() + " got replaced");
@@ -95,15 +104,27 @@ public class StateManager {
      * @param event The event to be handled.
      */
     public static PanelTransaction handleEvent(Event event) {
-        PanelTransaction panelTransaction = new PanelTransaction();
+        logIfDebuggable("handleEvent " + event);
+        PanelTransaction.Builder panelTransactionBuilder = new PanelTransaction.Builder();
         for (PanelState panelState : sInstance.mPanelStates.values()) {
+            if (panelState == null) {
+                Log.e(TAG, "panel state is null");
+                continue;
+            }
             Transition transition = panelState.getTransition(event);
             if (transition == null) {
+                Log.e(TAG, "transition is null for " + panelState.getId());
                 continue;
             }
             Panel panel = PanelPool.getInstance().getPanel(panelState.getId());
 
             Variant toVariant = transition.getToVariant();
+            Variant fromVariant = panelState.getCurrentVariant();
+
+            if (fromVariant == null) {
+                logIfDebuggable("fromVariant is null");
+                continue;
+            }
 
             Animator animator = transition.getAnimator(panel, panelState.getCurrentVariant());
             if (animator != null) {
@@ -119,17 +140,18 @@ public class StateManager {
                         applyState(panelState);
                     }
                 });
-                Log.d(TAG, "add animator for " + panelState.getId());
-                panelTransaction.setAnimator(panelState.getId(), animator);
+                logIfDebuggable("add animator for " + panelState.getId());
+                panelTransactionBuilder.addAnimator(panelState.getId(), animator);
             } else if (!panelState.isAnimating()) {
                 // Force apply the new state if there is no on going animation.
+                logIfDebuggable("No animator for " + panelState.getId());
                 panelState.setVariant(toVariant.getId(), event);
                 applyState(panelState);
             }
-            Log.d(TAG, "add transition for " + panelState.getId());
-            panelTransaction.setPanelTransaction(panelState.getId(), transition);
+            logIfDebuggable("add transition for " + panelState.getId());
+            panelTransactionBuilder.addPanelTransaction(panelState.getId(), transition);
         }
-        return panelTransaction;
+        return panelTransactionBuilder.build();
     }
 
     /**
@@ -148,6 +170,8 @@ public class StateManager {
         panel.setAlpha(variant.getAlpha());
         panel.setLayer(variant.getLayer());
         panel.setDisplayId(panelState.getDisplayId());
+        panel.setInsets(variant.getInsets());
+        panel.setCornerRadius(variant.getCornerRadius());
     }
 
     //TODO(b/390006880): make this part of configuration.
@@ -172,5 +196,11 @@ public class StateManager {
     @VisibleForTesting
     Map<String, PanelState> getPanelStates() {
         return mPanelStates;
+    }
+
+    private static void logIfDebuggable(String msg) {
+        if (DEBUG) {
+            Log.d(TAG, msg);
+        }
     }
 }

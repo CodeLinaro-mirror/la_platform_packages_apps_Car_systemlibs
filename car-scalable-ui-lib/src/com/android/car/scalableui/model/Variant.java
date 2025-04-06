@@ -13,71 +13,82 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.car.scalableui.model;
 
 import android.animation.Animator;
 import android.animation.FloatEvaluator;
+import android.animation.IntEvaluator;
 import android.animation.RectEvaluator;
 import android.animation.ValueAnimator;
-import android.content.Context;
+import android.graphics.Insets;
 import android.graphics.Rect;
-import android.util.AttributeSet;
-import android.util.Xml;
+import android.os.Build;
+import android.util.Log;
 import android.view.animation.Interpolator;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.android.car.scalableui.manager.Event;
 import com.android.car.scalableui.panel.Panel;
-
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-
-import java.io.IOException;
 
 /**
  * Represents a specific visual state or variant of a {@code Panel}.
  *
- * <p>This class defines the visual properties of a {@code Panel}, such as its bounds,
- * visibility, layer, and alpha. It also provides methods for creating animations
- * to transition between different variants.
+ * <p>This class defines the visual properties of a {@code Panel}, such as its bounds, visibility,
+ * layer, and alpha. It also provides methods for creating animations to transition between
+ * different variants.
  */
 public class Variant {
-    static final String VARIANT_TAG = "Variant";
-    private static final String ID_ATTRIBUTE = "id";
-    private static final String PARENT_ATTRIBUTE = "parent";
+    private static final String TAG = Variant.class.getSimpleName();
+    private static final boolean DEBUG = Build.IS_DEBUGGABLE;
 
     private final FloatEvaluator mFloatEvaluator = new FloatEvaluator();
     private final RectEvaluator mRectEvaluator = new RectEvaluator();
+    private final IntEvaluator mIntEvaluator = new IntEvaluator();
 
-    private final String mId;
+    @NonNull protected final String mId;
     private float mAlpha;
     private boolean mIsVisible;
     private int mLayer;
-    private Rect mBounds;
+    private int mCornerRadius;
+    @NonNull private Rect mBounds;
+    @NonNull private Insets mInsets;
 
     /**
-     * Constructs a Variant object with the specified ID and optional base variant.
+     * Constructs a Variant object with the specified ID. This constructor is package-private and is
+     * intended to be used by the VariantBuilder.
+     *
+     * @param id The ID of the variant.
+     */
+    Variant(@NonNull String id) {
+        this.mId = id;
+
+        // Initialize with default values
+        mBounds = new Rect();
+        mIsVisible = Visibility.DEFAULT_VISIBILITY;
+        mLayer = Layer.DEFAULT_LAYER;
+        mAlpha = Alpha.DEFAULT_ALPHA;
+        mCornerRadius = Corner.DEFAULT_RADIUS;
+        mInsets = Insets.NONE;
+    }
+
+    /**
+     * Constructs a Variant object with the specified ID and base variant. Package private
+     * constructor, designed to be invoked by the builder.
      *
      * <p>If a base variant is provided, the new variant inherits its visual properties.
      *
      * @param id The ID of the variant.
      * @param base The optional base variant to inherit properties from.
      */
-    public Variant(String id, Variant base) {
-        this.mId = id;
-        if (base != null) {
-            mBounds = base.getBounds();
-            mIsVisible = base.isVisible();
-            mLayer = base.getLayer();
-            mAlpha = base.getAlpha();
-        } else {
-            mBounds = new Rect();
-            mIsVisible = Visibility.DEFAULT_VISIBILITY;
-            mLayer = Layer.DEFAULT_LAYER;
-            mAlpha = Alpha.DEFAULT_ALPHA;
-        }
+    Variant(@NonNull String id, @NonNull Variant base) {
+        this(id);
+        mBounds = new Rect(base.getBounds());
+        mIsVisible = base.isVisible();
+        mLayer = base.getLayer();
+        mAlpha = base.getAlpha();
+        mCornerRadius = base.getCornerRadius();
+        mInsets = base.getInsets();
     }
 
     /**
@@ -85,6 +96,7 @@ public class Variant {
      *
      * @return The ID of the variant.
      */
+    @NonNull
     public String getId() {
         return mId;
     }
@@ -98,29 +110,47 @@ public class Variant {
      * @param interpolator The interpolator to use for the animation.
      * @return An animator that animates the panel's properties to the target variant.
      */
-    public Animator getAnimator(Panel panel, Variant toVariant, long duration,
-            Interpolator interpolator) {
+    @Nullable
+    public Animator getAnimator(
+            @NonNull Panel panel,
+            @NonNull Variant toVariant,
+            long duration,
+            @Nullable Interpolator interpolator) {
         if (toVariant instanceof KeyFrameVariant) {
             return null;
         } else {
             float fromAlpha = panel.getAlpha();
             float toAlpha = toVariant.getAlpha();
-            Rect fromBounds = panel.getBounds();
-            Rect toBounds = toVariant.getBounds();
+            int fromCornerRadius = panel.getCornerRadius();
+            int toCornerRadius = toVariant.getCornerRadius();
+            Rect fromBounds = new Rect(panel.getBounds());
+            Rect toBounds = new Rect(toVariant.getBounds());
             boolean isVisible = panel.isVisible() || toVariant.isVisible();
             int layer = toVariant.getLayer();
+            Rect fromInsets = panel.getInsets().toRect();
+            Rect toInsets = toVariant.getInsets().toRect();
             ValueAnimator valueAnimator = ValueAnimator.ofFloat(0, 1);
             valueAnimator.setDuration(duration);
             valueAnimator.setInterpolator(interpolator);
-            valueAnimator.addUpdateListener(animator -> {
-                panel.setVisibility(isVisible);
-                panel.setLayer(layer);
-                float fraction = animator.getAnimatedFraction();
-                Rect bounds = mRectEvaluator.evaluate(fraction, fromBounds, toBounds);
-                panel.setBounds(bounds);
-                float alpha = mFloatEvaluator.evaluate(fraction, fromAlpha, toAlpha);
-                panel.setAlpha(alpha);
-            });
+            valueAnimator.addUpdateListener(
+                    animator -> {
+                        panel.setVisibility(isVisible);
+                        panel.setLayer(layer);
+                        float fraction = animator.getAnimatedFraction();
+                        Rect bounds = mRectEvaluator.evaluate(fraction, fromBounds, toBounds);
+                        panel.setBounds(bounds);
+                        float alpha = mFloatEvaluator.evaluate(fraction, fromAlpha, toAlpha);
+                        panel.setAlpha(alpha);
+                        int radius = mIntEvaluator.evaluate(fraction, fromCornerRadius,
+                                toCornerRadius);
+                        panel.setCornerRadius(radius);
+                        Rect insets = mRectEvaluator.evaluate(fraction, fromInsets,
+                                toInsets);
+                        panel.setInsets(Insets.of(insets));
+                        if (DEBUG) {
+                            Log.d(TAG, "Panel updated: " + panel);
+                        }
+                    });
             return valueAnimator;
         }
     }
@@ -139,7 +169,7 @@ public class Variant {
      *
      * @param isVisible True if the variant should be visible, false otherwise.
      */
-    public void setVisibility(boolean isVisible) {
+    protected void setVisibility(boolean isVisible) {
         this.mIsVisible = isVisible;
     }
 
@@ -150,6 +180,15 @@ public class Variant {
      */
     public int getLayer() {
         return mLayer;
+    }
+
+    /**
+     * Sets the layer of the variant.
+     *
+     * @param layer The layer value to set.
+     */
+    protected void setLayer(int layer) {
+        mLayer = layer;
     }
 
     /**
@@ -166,17 +205,8 @@ public class Variant {
      *
      * @param alpha The alpha value to set.
      */
-    public void setAlpha(float alpha) {
+    protected void setAlpha(float alpha) {
         mAlpha = alpha;
-    }
-
-    /**
-     * Sets the layer of the variant.
-     *
-     * @param layer The layer value to set.
-     */
-    public void setLayer(int layer) {
-        mLayer = layer;
     }
 
     /**
@@ -184,6 +214,7 @@ public class Variant {
      *
      * @return The bounds of the variant.
      */
+    @NonNull
     public Rect getBounds() {
         return mBounds;
     }
@@ -193,8 +224,26 @@ public class Variant {
      *
      * @param bounds The bounds to set.
      */
-    public void setBounds(Rect bounds) {
+    protected void setBounds(@NonNull Rect bounds) {
         mBounds = bounds;
+    }
+
+    /**
+     * Returns the corner radius of the variant.
+     *
+     * @return The corner radius of the variant.
+     */
+    public int getCornerRadius() {
+        return mCornerRadius;
+    }
+
+    /**
+     * Sets the corner radius of the variant.
+     *
+     * @param radius The corner radius to set.
+     */
+    protected void setCornerRadius(int radius) {
+        mCornerRadius = radius;
     }
 
     /**
@@ -202,63 +251,136 @@ public class Variant {
      *
      * @param event the event that was executed.
      */
-    public void updateFromEvent(@Nullable Event event) {
+    protected void updateFromEvent(@Nullable Event event) {
         // no-op
     }
 
     /**
-     * Creates a Variant object from an XML parser.
-     *
-     * <p>This method parses an XML element with the tag "Variant" and extracts its attributes
-     * and child elements to create a Variant object.
-     *
-     * @param context The application context.
-     * @param panelState The panel data associated with this variant.
-     * @param parser The XML parser.
-     * @return A Variant object with the parsed properties.
-     * @throws XmlPullParserException If an error occurs during XML parsing.
-     * @throws IOException If an I/O error occurs while reading the XML.
+     * @return {@link Insets}.
      */
-    static Variant create(Context context, PanelState panelState, XmlPullParser parser) throws
-            XmlPullParserException, IOException {
-        parser.require(XmlPullParser.START_TAG, null, VARIANT_TAG);
-        AttributeSet attrs = Xml.asAttributeSet(parser);
-        String id = attrs.getAttributeValue(null, ID_ATTRIBUTE);
-        String parentStr = attrs.getAttributeValue(null, PARENT_ATTRIBUTE);
-        Variant parent = panelState.getVariant(parentStr);
-        Variant result = new Variant(id, parent);
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.getEventType() != XmlPullParser.START_TAG) continue;
-            String name = parser.getName();
-            switch (name) {
-                case Visibility.VISIBILITY_TAG:
-                    result.setVisibility(Visibility.create(parser).isVisible());
-                    break;
-                case Alpha.ALPHA_TAG:
-                    result.setAlpha(Alpha.create(parser).getAlpha());
-                    break;
-                case Layer.LAYER_TAG:
-                    result.setLayer(Layer.create(parser).getLayer());
-                    break;
-                case Bounds.BOUNDS_TAG:
-                    result.setBounds(Bounds.create(context, parser).getRect());
-                    break;
-                default:
-                    XmlPullParserHelper.skip(parser);
-                    break;
-            }
-        }
-        return result;
+    @Nullable
+    public Insets getInsets() {
+        return mInsets;
+    }
+
+    /**
+     * Sets insets.
+     * This is essentially the panle's safe rectangle.
+     */
+    protected void setInsets(@NonNull Insets insets) {
+        mInsets = insets;
     }
 
     @Override
+    @NonNull
     public String toString() {
         return "Variant{"
-                + "mId='" + mId + '\''
-                + ", mAlpha=" + mAlpha
-                + ", mIsVisible=" + mIsVisible
-                + ", mLayer=" + mLayer
-                + ", mBounds=" + mBounds
+                + "mId='"
+                + mId
+                + '\''
+                + ", mAlpha="
+                + mAlpha
+                + ", mIsVisible="
+                + mIsVisible
+                + ", mLayer="
+                + mLayer
+                + ", mBounds="
+                + mBounds
+                + ", mCornerRadius="
+                + mCornerRadius
+                + ", mInsets="
+                + mInsets
                 + '}';
+    }
+
+    /** Builder for {@link Variant} objects. */
+    public static class Builder {
+        @NonNull protected String mId;
+        @Nullable protected Float mAlpha;
+        @Nullable protected Boolean mIsVisible;
+        @Nullable protected Integer mLayer;
+        @Nullable protected Rect mBounds;
+        @Nullable protected Integer mCornerRadius;
+        @Nullable protected Insets mInsets;
+        @Nullable protected Variant mParent;
+
+        public Builder(@NonNull String id) {
+            mId = id;
+        }
+
+        /** Sets alpha */
+        public Builder setAlpha(@Nullable Float alpha) {
+            mAlpha = alpha;
+            return this;
+        }
+
+        /** Sets visibility */
+        public Builder setVisibility(@Nullable Boolean isVisible) {
+            mIsVisible = isVisible;
+            return this;
+        }
+
+        /** Sets layer */
+        public Builder setLayer(@Nullable Integer layer) {
+            mLayer = layer;
+            return this;
+        }
+
+        /** Sets bounds */
+        public Builder setBounds(@NonNull Rect bounds) {
+            mBounds = bounds;
+            return this;
+        }
+
+        /** Sets corner radius */
+        public Builder setCornerRadius(@NonNull Integer cornerRadius) {
+            mCornerRadius = cornerRadius;
+            return this;
+        }
+
+        /** Sets insets */
+        public Builder setInsets(@NonNull Insets insets) {
+            mInsets = insets;
+            return this;
+        }
+
+        /** Sets parent */
+        public Builder setParent(@Nullable Variant parent) {
+            mParent = parent;
+            return this;
+        }
+
+        /** Returns the {@link Variant} instance */
+        @NonNull
+        public Variant build() {
+            Variant variant;
+            if (mParent != null) {
+                variant = new Variant(mId, mParent);
+            } else {
+                variant = new Variant(mId);
+            }
+
+            if (mAlpha != null) {
+                variant.setAlpha(mAlpha);
+            }
+            if (mIsVisible != null) {
+                variant.setVisibility(mIsVisible);
+            }
+            if (mLayer != null) {
+                variant.setLayer(mLayer);
+            }
+            if (mBounds != null) {
+                variant.setBounds(new Rect(mBounds)); // Defensive copy
+            }
+            if (mCornerRadius != null) {
+                variant.setCornerRadius(mCornerRadius);
+            }
+            if (mInsets != null) {
+                variant.setInsets(
+                        Insets.of(mInsets.left, mInsets.top, mInsets.right, mInsets.bottom));
+            }
+
+            return variant;
+        }
     }
 }
