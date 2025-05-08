@@ -13,22 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.android.car.scalableui.designcompose
 
-package com.android.car.datasubscription;
-
-public interface NetworkTaskEventListener {
-    /**
-     * Called when the car data subscription status changes.
-     */
-    boolean  onDataSubscriptionStatusChanged(boolean isUxrRequired,
-            boolean shouldDisplayProactiveMsg);
-    /**
-     * Called when a task is moved to the front, indicating a change in the foreground app.
-     */
-    boolean onAppForeground(boolean isUxrRequired, boolean shouldDisplayReactiveMsg,
-            CharSequence appLabel);
-    /**
-     * Called when there is a UXR change.
-     */
-    boolean onUxrChange(boolean isUxrRequired);
-}
+class MyKotlinClass
