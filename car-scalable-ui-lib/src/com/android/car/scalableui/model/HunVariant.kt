@@ -18,27 +18,26 @@ package com.android.car.scalableui.model
 import android.graphics.Insets
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
-import android.view.Gravity
 import androidx.annotation.NonNull
 import androidx.annotation.Nullable
 
 /**
- * A specialized version of [Variant] for Heads-Up Notifications (Huns).
+ * A specialized version of [GravityVariant] for Heads-Up Notifications (Huns).
  *
- * This class extends the base [Variant] to include Hun-specific properties like a scrim drawable.
+ * This class extends the base [GravityVariant] to include Hun-specific properties like a scrim
+ * drawable.
  */
-open class HunVariant : Variant {
+open class HunVariant : GravityVariant {
     @get:Nullable
     val scrim: Drawable?
-    val gravity: Int
+
     internal constructor(
         id: String,
         idName: String,
         scrim: Drawable?,
         gravity: Int
-    ) : super(id, idName) {
+    ) : super(id, idName, gravity) {
         this.scrim = scrim
-        this.gravity = gravity
     }
 
     internal constructor(
@@ -47,23 +46,19 @@ open class HunVariant : Variant {
         idName: String,
         scrim: Drawable?,
         gravity: Int
-    ) : super(id, base, idName) {
+    ) : super(id, base, idName, gravity) {
         this.scrim = scrim
-        this.gravity = gravity
     }
 
     /** Builder for [HunVariant] objects. */
-    class Builder(id: String, idName: String) : Variant.Builder(id, idName) {
+    class Builder(id: String, idName: String) : GravityVariant.Builder(id, idName) {
         private var scrim: Drawable? = null
-        private var gravity: Int = Gravity.NO_GRAVITY
 
         /** Sets the scrim for this variant. */
         fun setScrim(scrim: Drawable?): Builder = apply { this.scrim = scrim }
 
-        /** Sets the gravity for this variant. */
-        fun setGravity(gravity: Int): Builder = apply { this.gravity = gravity }
-
         // Override parent methods to return the correct builder type for chaining.
+        override fun setGravity(gravity: Int): Builder = apply { this.gravity = gravity }
         override fun setParent(parent: Variant?): Builder = apply { super.setParent(parent) }
         override fun setAlpha(alpha: Float?): Builder = apply { super.setAlpha(alpha) }
         override fun setVisibility(isVisible: Boolean?): Builder =
