@@ -24,7 +24,10 @@ android_test {
     certificate: "platform",
     privileged: true,
     resource_dirs: ["res"],
-    srcs: ["src/**/*.java"],
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+    ],
 
     libs: [
         "android.test.runner.stubs.system",
@@ -39,6 +42,7 @@ android_test {
         "androidx.test.rules",
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
+        "flag-junit",
         "mockito-target-extended-minus-junit4",
         "platform-test-annotations",
         "truth",

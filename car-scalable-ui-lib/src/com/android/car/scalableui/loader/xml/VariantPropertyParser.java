@@ -13,20 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.android.car.scalableui.loader.xml;
 
-package com.android.car.scalableui.model;
+import android.content.Context;
 
-import static org.testng.Assert.assertThrows;
+import com.android.car.scalableui.model.Variant;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import java.io.IOException;
 
-@RunWith(AndroidJUnit4.class)
-public class RoleTest {
-    @Test
-    public void testRole_notInitialized_throwsException() {
-        assertThrows(IllegalStateException.class, () -> new Role.Builder().build());
-    }
+/**
+ * Defines an object that parses a particular TAG to add it to the {@link Variant.Builder}
+ */
+interface VariantPropertyParser {
+    /**
+     * Parser for a given Variant Tag
+     */
+    Variant.Builder parse(Context context, XmlPullParser parser, Variant.Builder builder,
+            int displayId) throws XmlPullParserException, IOException;
 }

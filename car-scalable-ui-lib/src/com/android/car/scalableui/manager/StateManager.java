@@ -21,6 +21,7 @@ import android.os.Build;
 import android.util.ArraySet;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
@@ -37,7 +38,6 @@ import com.android.internal.jank.InteractionJankMonitor;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -77,6 +77,19 @@ public class StateManager {
     }
 
     /**
+     * Get shallow copy of the current PanelStates {@link StateManager#mPanelStates}
+     * @return Snapshot of the current Map of PanelState.
+     *
+     */
+    private static Map<String, PanelState> getCurrentPanelStatesCopy() {
+        return sInstance.mPanelStates.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().clone()
+                ));
+    }
+
+    /**
      * Returns the singleton instance of the StateManager.
      *
      * @return The singleton instance of the StateManager.
@@ -88,14 +101,15 @@ public class StateManager {
     /**
      * Adds a new panel state definition.
      */
-    public static void addState(PanelState panelState) {
+    public static void addState(@NonNull PanelState panelState) {
         if (sInstance.mPanelStates.put(panelState.getId(), panelState) != null) {
             if (DEBUG) {
                 Log.w(TAG, "Previous PanelState with id=" + panelState.getId() + " got replaced");
             }
         }
         applyState(panelState);
-        Panel panel = PanelPool.getInstance().getPanel(panelState.getId());
+        Panel panel =
+                PanelPool.getInstance().getOrCreatePanel(panelState.getId(), panelState.getType());
         panel.init();
     }
 
@@ -106,14 +120,12 @@ public class StateManager {
      *
      * @param event The event to be handled.
      */
-    public static PanelTransaction handleEvent(Event event) {
+    public static PanelTransaction handleEvent(@NonNull Event event) {
         logIfDebuggable("handleEvent " + event);
         PanelTransaction.Builder panelTransactionBuilder = new PanelTransaction.Builder();
         HashSet<String> changedPanelIds = new HashSet<>();
         // Make a ShallowCopy of the currentPanelStates.
-        Collection<PanelState> initialState = sInstance.mPanelStates.values()
-                .stream()
-                .map(PanelState::clone).collect(Collectors.toList());
+        Map<String, PanelState> currentPanelStatesCopy = getCurrentPanelStatesCopy();
         for (PanelState panelState : sInstance.mPanelStates.values()) {
             if (panelState == null) {
                 Log.e(TAG, "panel state is null");
@@ -125,7 +137,8 @@ public class StateManager {
                 panelTransactionBuilder.addLockedPanelId(panelState.getId());
                 continue;
             }
-            Panel panel = PanelPool.getInstance().getPanel(panelState.getId());
+            Panel panel = PanelPool.getInstance()
+                    .getOrCreatePanel(panelState.getId(), panelState.getType());
 
             Variant toVariant = transition.getToVariant();
             Variant fromVariant = panelState.getCurrentVariant();
@@ -186,7 +199,8 @@ public class StateManager {
         }
         PanelTransaction panelTransaction = panelTransactionBuilder.build();
         if (sMetricsHelper != null) {
-            sMetricsHelper.recordJankCuj(event, panelTransaction.getAnimators(), initialState);
+            sMetricsHelper.recordJankCuj(event, panelTransaction.getAnimators(),
+                    currentPanelStatesCopy, sInstance.mPanelStates);
         }
         return panelTransactionBuilder.build();
     }
@@ -197,10 +211,10 @@ public class StateManager {
      *
      * @param panelState The panel data containing the current state information.
      */
-    public static void applyState(PanelState panelState) {
+    public static void applyState(@NonNull PanelState panelState) {
         Variant variant = panelState.getCurrentVariant();
         String panelId = panelState.getId();
-        Panel panel = PanelPool.getInstance().getPanel(panelId);
+        Panel panel = PanelPool.getInstance().getOrCreatePanel(panelId, panelState.getType());
         panel.setRole(panelState.getRole());
         panel.setBounds(variant.getBounds());
         panel.setVisibility(variant.isVisible());
@@ -224,7 +238,10 @@ public class StateManager {
      */
     public static void handlePanelReset() {
         for (PanelState panelState : getInstance().mPanelStates.values()) {
-            PanelPool.getInstance().getPanel(panelState.getId()).reset();
+            Panel panel = PanelPool.getInstance().getPanel(panelState.getId());
+            if (panel != null) {
+                panel.reset();
+            }
         }
     }
 
@@ -257,7 +274,7 @@ public class StateManager {
      */
     public static void dumpPanelStates(PrintWriter pw) {
         for (PanelState panelState : getInstance().mPanelStates.values()) {
-            pw.println(panelState.toString());
+            pw.println(panelState.toShortString());
         }
     }
 
@@ -347,8 +364,8 @@ public class StateManager {
          * @param changedPanelIds the panelIds that are changing
          * @param toPanelStates   the panel states from after the change
          */
-        void onBeforePanelStateChanged(Set<String> changedPanelIds,
-                Map<String, PanelState> toPanelStates);
+        void onBeforePanelStateChanged(@NonNull Set<String> changedPanelIds,
+                @NonNull Map<String, PanelState> toPanelStates);
 
         /**
          * Notify of a panel state change that has finished
@@ -356,8 +373,8 @@ public class StateManager {
          * @param changedPanelIds the panelIds that have changed
          * @param toPanelStates   the panel states from after the change
          */
-        void onPanelStateChanged(Set<String> changedPanelIds,
-                Map<String, PanelState> toPanelStates);
+        void onPanelStateChanged(@NonNull Set<String> changedPanelIds,
+                @NonNull Map<String, PanelState> toPanelStates);
     }
 
     private static class PanelStateObserverData {

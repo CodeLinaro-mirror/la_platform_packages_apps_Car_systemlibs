@@ -15,8 +15,6 @@
  */
 package com.android.car.scalableui.model;
 
-import static com.android.car.scalableui.Flags.enableDecor;
-
 import android.animation.Animator;
 import android.animation.FloatEvaluator;
 import android.animation.IntEvaluator;
@@ -337,9 +335,6 @@ public class Variant {
     }
 
     private void setDecors(@NonNull Set<Decor> decors) {
-        if (!enableDecor()) {
-            return;
-        }
         mDecors.clear();
         decors.forEach(decor -> {
             mDecors.put(decor.getId(), decor);
@@ -361,30 +356,21 @@ public class Variant {
         String decorString = mDecors.isEmpty()
                 ? "empty"
                 : mDecors.entrySet()
-                        .stream()
-                        .map(entry -> entry.getKey() + "=" + entry.getValue())
-                        .collect(Collectors.joining(" , "));
+                .stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(" , "));
 
         return "Variant{"
-                + "mIdName='"
-                + mIdName
-                + '\''
-                + ", mAlpha="
-                + mAlpha
-                + ", mIsVisible="
-                + mIsVisible
-                + ", mLayer="
-                + mLayer
-                + ", mCanFocusOnTransition="
-                + mCanFocusOnTransition
-                + ", mBounds="
-                + mBounds
-                + ", mSafeBounds="
-                + mSafeBounds
-                + ", mCornerRadius="
-                + mCornerRadius
-                + ", mInsets="
-                + mInsets
+                + "\n\tmIdName=" + mIdName
+                + "\n\tmAlpha=" + mAlpha
+                + "\n\tmIsVisible=" + mIsVisible
+                + "\n\tmLayer=" + mLayer
+                + "\n\tmCanFocusOnTransition=" + mCanFocusOnTransition
+                + "\n\tmBounds=" + mBounds
+                + "\n\tmSafeBounds=" + mSafeBounds
+                + "\n\tmCornerRadius=" + mCornerRadius
+                + "\n\tmInsets=" + mInsets
+                + "\n\tmDecors=" + decorString
                 + '}';
     }
 
@@ -488,9 +474,7 @@ public class Variant {
 
         /** Adds decor */
         public Builder addDecor(Decor decor) {
-            if (enableDecor()) {
-                mDecors.add(decor);
-            }
+            mDecors.add(decor);
             return this;
         }
 
