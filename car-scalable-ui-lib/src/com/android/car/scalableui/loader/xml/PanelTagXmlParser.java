@@ -56,6 +56,7 @@ import com.android.car.scalableui.model.PanelState;
 import com.android.car.scalableui.model.PanelType;
 import com.android.car.scalableui.model.Restart;
 import com.android.car.scalableui.model.Role;
+import com.android.car.scalableui.model.TaskBehavior;
 import com.android.car.scalableui.model.Transition;
 import com.android.car.scalableui.model.Variant;
 import com.android.car.scalableui.model.Visibility;
@@ -93,6 +94,9 @@ public class PanelTagXmlParser {
     public static final String RESTART_TAG = "Restart";
     public static final String POLICY_ATTRIBUTE = "policy";
     public static final String MAX_RETRY_ATTRIBUTE = "maxRetry";
+    // --- TaskBehavior Tags --
+    public static final String TASK_BEHAVIOR_TAG = "TaskBehavior";
+    public static final String NEW_TASK_LAUNCH_POLICY_ATTRIBUTE = "newTaskLaunchPolicy";
     // --- Transitions Tags ---
     public static final String TRANSITIONS_TAG = "Transitions";
     public static final String DEFAULT_DURATION_ATTRIBUTE = "defaultDuration";
@@ -113,6 +117,7 @@ public class PanelTagXmlParser {
     // --- Background Tags ---
     public static final String BACKGROUND_TAG = "Background";
     public static final String BACKGROUND_COLOR_ATTRIBUTE = "color";
+    public static final String BACKGROUND_DRAWABLE_ATTRIBUTE = "drawable";
     public static final String BACKGROUND_ALPHA_ATTRIBUTE = "alpha";
     // --- Visibility Tags ---
     public static final String VISIBILITY_TAG = "Visibility";
@@ -129,6 +134,7 @@ public class PanelTagXmlParser {
     // --- Bounds Tags ---
     public static final String BOUNDS_TAG = "Bounds";
     public static final String SAFE_BOUNDS_TAG = "SafeBounds";
+    public static final String TASK_TOOLBAR_BOUNDS_TAG = "TaskToolbarBounds";
     public static final String LEFT_ATTRIBUTE = "left";
     public static final String RIGHT_ATTRIBUTE = "right";
     public static final String TOP_ATTRIBUTE = "top";
@@ -213,8 +219,9 @@ public class PanelTagXmlParser {
                 ALPHA_TAG, getVariantAlphaParser(),
                 LAYER_TAG, getVariantLayerParser(),
                 FOCUS_TAG, getVariantFocusParser(),
-                BOUNDS_TAG, getVariantBoundsParser(),
-                SAFE_BOUNDS_TAG, getVariantSafeBoundsParser(),
+                BOUNDS_TAG, getVariantBoundsParser(BOUNDS_TAG),
+                SAFE_BOUNDS_TAG, getVariantBoundsParser(SAFE_BOUNDS_TAG),
+                TASK_TOOLBAR_BOUNDS_TAG, getVariantBoundsParser(TASK_TOOLBAR_BOUNDS_TAG),
                 CORNER_TAG, getVariantCornerParser(),
                 INSETS_TAG, getVariantInsetsParser(),
                 BACKGROUND_TAG, getVariantBackgroundParser(id));
@@ -229,12 +236,14 @@ public class PanelTagXmlParser {
                 case KEY_FRAME_VARIANT_TAG -> panelState.addVariant(
                         parseKeyFrameVariant(panelState, parser, context));
                 case TRANSITIONS_TAG -> {
-                    List<Transition> transitions = parseTransitions(context, panelState, parser);
+                    List<Transition> transitions = parseTransitions(context, displayId, panelState,
+                            parser);
                     for (Transition transition : transitions) {
                         panelState.addTransition(transition);
                     }
                 }
                 case RESTART_TAG -> panelState.addRestart(parseRestart(parser));
+                case TASK_BEHAVIOR_TAG -> panelState.addTaskBehavior(parseTaskBehavior(parser));
                 default -> XmlPullParserHelper.skip(parser);
             }
         }
@@ -284,6 +293,17 @@ public class PanelTagXmlParser {
         return new Restart(policy, maxRetry);
     }
 
+    private static TaskBehavior parseTaskBehavior(@NonNull XmlPullParser parser)
+            throws IOException, XmlPullParserException {
+        parser.require(XmlPullParser.START_TAG, null, TASK_BEHAVIOR_TAG);
+        AttributeSet attrs = Xml.asAttributeSet(parser);
+        String policy = attrs.getAttributeValue(null, NEW_TASK_LAUNCH_POLICY_ATTRIBUTE);
+        while (parser.next() != XmlPullParser.END_TAG) {
+            XmlPullParserHelper.skip(parser); // Skip any nested tags
+        }
+        return new TaskBehavior(policy);
+    }
+
     static PanelControllerMetadata createController(@NonNull Context context, int xmlId,
             int displayId) throws XmlPullParserException, IOException {
         XmlResourceParser parser = context.getResources().getXml(xmlId);
@@ -326,6 +346,7 @@ public class PanelTagXmlParser {
 
             String name = parser.getName();
             switch (name) {
+                //TODO(b/439937106):Deprecate CONFIG_TAG
                 case CONGIF_TAG:
                     String key = attrs.getAttributeValue(null, CONGIF_KEY_TAG);
                     String value = attrs.getAttributeValue(null, CONGIF_VALUE_TAG);
@@ -483,6 +504,11 @@ public class PanelTagXmlParser {
         String decorId = id + "_" + BACKGROUND_TAG;
         int colorRes = attrs.getAttributeResourceValue(/* namespace= */null,
                 BACKGROUND_COLOR_ATTRIBUTE, /* defaultValue= */-1);
+        // TODO(b/441580484): The drawableRes might be from a different package if it's only
+        // defined in an RRO. Add defensive mechanisms to handle cases where the resource ID
+        // is valid but not resolvable within the current package context.
+        int drawableRes = attrs.getAttributeResourceValue(/* namespace= */null,
+                BACKGROUND_DRAWABLE_ATTRIBUTE, /* defaultValue= */-1);
         float alpha = 1f;
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
@@ -492,7 +518,8 @@ public class PanelTagXmlParser {
             }
         }
 
-        return new Decor(decorId, /* layer= */ -1, colorRes, alpha, R.layout.background_layout);
+        return new Decor(decorId, /* layer= */ -1, colorRes, drawableRes, alpha,
+            R.layout.background_layout);
     }
 
     static VariantPropertyParser getVariantVisibilityParser() {
@@ -593,21 +620,36 @@ public class PanelTagXmlParser {
         return new Focus(focusOnTransition);
     }
 
-    static VariantPropertyParser getVariantBoundsParser() {
-        return (context, parser, builder, displayId) -> builder.setBounds(
-                parseBounds(context, parser, displayId).getRect());
+    /**
+     * Returns a parser that extracts bounds from XML and applies them to the correct property
+     * in the Variant.Builder based on the provided tag.
+     *
+     * @param tag The XML tag (e.g., "Bounds", "SafeBounds", "TaskToolbarBounds") that
+     *            determines which property on the builder is set.
+     * @return A {@link VariantPropertyParser} for handling bounds attributes.
+     */
+    static VariantPropertyParser getVariantBoundsParser(String tag) {
+        return (context, parser, builder, displayId) -> switch (tag) {
+            case BOUNDS_TAG -> builder.setBounds(
+                    parseBounds(context, parser, displayId).getRect());
+            case SAFE_BOUNDS_TAG -> builder.setSafeBounds(
+                    parseBounds(context, parser, displayId).getRect());
+            case TASK_TOOLBAR_BOUNDS_TAG -> builder.setTaskToolbarBounds(
+                    parseBounds(context, parser, displayId).getRect());
+            default -> throw new IllegalStateException("Unknown bounds tag: " + tag);
+        };
     }
 
-    static VariantPropertyParser getVariantSafeBoundsParser() {
-        return (context, parser, builder, displayId) -> builder.setSafeBounds(
-                parseBounds(context, parser, displayId).getRect());
+    private static boolean isSupportedBoundsTag(@NonNull String tag) {
+        return BOUNDS_TAG.equals(tag) || SAFE_BOUNDS_TAG.equals(tag)
+                || TASK_TOOLBAR_BOUNDS_TAG.equals(tag);
     }
 
     @NonNull
     static Bounds parseBounds(@NonNull Context context, @NonNull XmlPullParser parser,
             int displayId) throws IOException, XmlPullParserException {
-        if (XmlPullParser.START_TAG != parser.getEventType() || !(BOUNDS_TAG.equals(
-                parser.getName()) || SAFE_BOUNDS_TAG.equals(parser.getName()))) {
+        if (XmlPullParser.START_TAG != parser.getEventType() || !isSupportedBoundsTag(
+                parser.getName())) {
             throw new XmlPullParserException(
                     "parseBounds called with wrong parser event type: " + parser.getEventType()
                             + " or name: " + parser.getName());
@@ -689,13 +731,13 @@ public class PanelTagXmlParser {
     }
 
     @NonNull
-    static List<Transition> parseTransitions(@NonNull Context context,
+    static List<Transition> parseTransitions(@NonNull Context context, int displayId,
             @NonNull PanelState panelState, @NonNull XmlPullParser parser)
             throws XmlPullParserException, IOException {
         parser.require(XmlPullParser.START_TAG, null, TRANSITIONS_TAG);
         AttributeSet attrs = Xml.asAttributeSet(parser);
         // possible lossy conversion from long to int. we're assuming the default duration can be
-        // convereted to int safely.
+        // converted to int safely.
         int duration = attrs.getAttributeIntValue(null, DEFAULT_DURATION_ATTRIBUTE,
                 (int) DEFAULT_DURATION);
         int interpolatorRef = attrs.getAttributeResourceValue(null, DEFAULT_INTERPOLATOR_ATTRIBUTE,
@@ -708,7 +750,8 @@ public class PanelTagXmlParser {
             if (parser.getEventType() != XmlPullParser.START_TAG) continue;
 
             if (parser.getName().equals(TRANSITION_TAG)) {
-                result.add(parseTransition(context, panelState, duration, interpolator, parser));
+                result.add(parseTransition(context, displayId, panelState, duration, interpolator,
+                        parser));
             } else {
                 XmlPullParserHelper.skip(parser);
             }
@@ -717,7 +760,7 @@ public class PanelTagXmlParser {
     }
 
     @NonNull
-    private static Transition parseTransition(@NonNull Context context,
+    private static Transition parseTransition(@NonNull Context context, int displayId,
             @NonNull PanelState panelState, long defaultDuration,
             @Nullable Interpolator defaultInterpolator, @NonNull XmlPullParser parser)
             throws IOException, XmlPullParserException {
@@ -744,9 +787,10 @@ public class PanelTagXmlParser {
             XmlPullParserHelper.skip(parser); // Should be no nested tags.
         }
 
-        return new Transition.Builder(fromVariant, toVariant).setOnEvent(onEvent,
-                onEventTokens).setAnimator(animator).setDefaultDuration(duration).setDelay(
-                delay).setDefaultInterpolator(interpolator).build();
+        return new Transition.Builder(fromVariant, toVariant)
+                .setOnEvent(onEvent, onEventTokens, displayId)
+                .setAnimator(animator).setDefaultDuration(duration)
+                .setDelay(delay).setDefaultInterpolator(interpolator).build();
     }
 
     /**
