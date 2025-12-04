@@ -22,8 +22,8 @@ import androidx.annotation.Nullable;
 import com.android.car.scalableui.model.PanelType;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -37,7 +37,7 @@ import java.util.function.Predicate;
 public class PanelPool {
     private static final PanelPool sInstance = new PanelPool();
 
-    private final HashMap<String, Panel> mPanels = new HashMap<>();
+    private final ConcurrentHashMap<String, Panel> mPanels = new ConcurrentHashMap<>();
     private PanelCreatorDelegate mDelegate;
 
     /**
@@ -78,6 +78,7 @@ public class PanelPool {
      * Clears all panels from the pool.
      */
     public void clearPanels() {
+        mPanels.forEach((id, panel) -> panel.destroy());
         mPanels.clear();
     }
 
@@ -92,12 +93,7 @@ public class PanelPool {
      */
     @NonNull
     public Panel getOrCreatePanel(@NonNull String id, @PanelType int type) {
-        Panel panel = mPanels.get(id);
-        if (panel == null) {
-            panel = mDelegate.createPanel(id, type);
-            mPanels.put(id, panel);
-        }
-        return panel;
+        return mPanels.computeIfAbsent(id, key -> mDelegate.createPanel(id, type));
     }
 
     /**
