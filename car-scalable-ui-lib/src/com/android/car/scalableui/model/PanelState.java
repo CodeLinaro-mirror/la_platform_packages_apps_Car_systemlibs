@@ -18,6 +18,8 @@ package com.android.car.scalableui.model;
 import static android.view.Display.DEFAULT_DISPLAY;
 
 import android.animation.Animator;
+import android.os.Build;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,6 +39,7 @@ public class PanelState implements Cloneable {
     private static final String TAG = PanelState.class.getSimpleName();
 
     public static final String DEFAULT_ROLE = "DEFAULT";
+    private static final boolean DEBUG = Build.IS_DEBUGGABLE;
 
     private String mDefaultVariant;
     private int mDisplayId;
@@ -153,6 +156,17 @@ public class PanelState implements Cloneable {
         return null;
     }
 
+    /** Returns variant with the given id name */
+    @Nullable
+    public Variant getVariantByName(@NonNull String name) {
+        for (Variant variant : mVariants) {
+            if (variant.getIdName().equals(name)) {
+                return variant;
+            }
+        }
+        return null;
+    }
+
     /** Sets variant with the given id */
     public void setVariant(@NonNull String id) {
         setVariant(id, null);
@@ -177,6 +191,7 @@ public class PanelState implements Cloneable {
     public void setVariant(@NonNull String id, @Nullable Event event) {
         for (Variant variant : mVariants) {
             if (variant != null && variant.getId().equals(id)) {
+                if (DEBUG) Log.d(TAG, "setVariant,  " + variant);
                 mCurrentVariant = variant;
                 if (event != null) {
                     mCurrentVariant.updateFromEvent(event);
@@ -214,12 +229,17 @@ public class PanelState implements Cloneable {
     /** Returns transition for the given event */
     @Nullable
     public Transition getTransition(@Nullable Event event) {
+        return getTransition(event, getCurrentVariant());
+    }
+
+    /** Returns transition for the given event and from variant values */
+    @Nullable
+    public Transition getTransition(@Nullable Event event, @Nullable Variant fromVariant) {
         if (event == null) {
             return null;
         }
         // If both onEvent and fromVariant matches
-        String currentVariantId =
-                (getCurrentVariant() != null) ? getCurrentVariant().getId() : null;
+        String currentVariantId = (fromVariant != null) ? fromVariant.getId() : null;
         Transition result = getTransitionInternal(event, currentVariantId);
 
         if (result != null) {
@@ -232,7 +252,7 @@ public class PanelState implements Cloneable {
     @Nullable
     private Transition getTransitionInternal(@NonNull Event event, @Nullable String fromVariant) {
         for (Transition transition : mTransitions) {
-            if (event.isMatch(transition.getOnEvent())
+            if (transition.isTriggeredBy(event)
                     && transition.getFromVariant() != null
                     && transition.getFromVariant().getId().equals(fromVariant)) {
                 return transition;
@@ -244,7 +264,7 @@ public class PanelState implements Cloneable {
     @Nullable
     private Transition getTransitionInternal(@NonNull Event event) {
         for (Transition transition : mTransitions) {
-            if (event.isMatch(transition.getOnEvent()) && transition.getFromVariant() == null) {
+            if (transition.isTriggeredBy(event) && transition.getFromVariant() == null) {
                 return transition;
             }
         }
