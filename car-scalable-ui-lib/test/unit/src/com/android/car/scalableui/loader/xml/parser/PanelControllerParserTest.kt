@@ -20,7 +20,6 @@ import android.content.Context
 import android.util.Xml
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.car.scalableui.loader.xml.CoreParserModule
 import com.android.car.scalableui.loader.xml.ParserEnv
 import com.android.car.scalableui.loader.xml.XmlParserRegistry
 import com.google.common.truth.Truth.assertThat
@@ -41,7 +40,6 @@ class PanelControllerParserTest {
     fun setUp() {
         val androidContext = ApplicationProvider.getApplicationContext<Context>()
         val registry = XmlParserRegistry()
-        CoreParserModule().registerParsers(registry)
         context = ParserEnv(androidContext, ResourceValueParser(), registry)
         parser = PanelControllerParser()
     }
