@@ -144,4 +144,128 @@ class SystemBarParserTest {
         panelState.resetVariant()
         assertThat(panelState.currentVariant?.idName).isEqualTo("variant1")
     }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_EXT_PANEL_UPDATES)
+    fun parseSystemBar_withDragOpenNotification_true_parsesTrue() {
+        val xml = """
+            <SystemBar id="top" barZOrder="1" type="status" dragOpenNotification="true">
+            </SystemBar>
+        """.trimIndent()
+
+        val factory = XmlPullParserFactory.newInstance()
+        val parser = factory.newPullParser()
+        parser.setInput(java.io.StringReader(xml))
+
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.START_TAG) {
+            eventType = parser.next()
+        }
+
+        val valueParser = ResourceValueParser()
+        val registry = XmlParserRegistry()
+
+        val parserContext = ParserEnv(context, valueParser, registry)
+        val systemBarParser = SystemBarParser()
+        val panelState = systemBarParser.parseTag(parserContext, parser)
+
+        assertThat(panelState).isNotNull()
+        val configurations = panelState.panelControllerMetadata?.configurations
+        assertThat(configurations).isNotNull()
+        val dragOpenAttr = SystemBarParser.DRAG_OPEN_NOTIFICATION_ATTRIBUTE
+        assertThat(configurations?.getBoolean(dragOpenAttr)).isTrue()
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_EXT_PANEL_UPDATES)
+    fun parseSystemBar_withDragCloseNotification_true_parsesTrue() {
+        val xml = """
+            <SystemBar id="top" barZOrder="1" type="status" dragCloseNotification="true">
+            </SystemBar>
+        """.trimIndent()
+
+        val factory = XmlPullParserFactory.newInstance()
+        val parser = factory.newPullParser()
+        parser.setInput(java.io.StringReader(xml))
+
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.START_TAG) {
+            eventType = parser.next()
+        }
+
+        val valueParser = ResourceValueParser()
+        val registry = XmlParserRegistry()
+
+        val parserContext = ParserEnv(context, valueParser, registry)
+        val systemBarParser = SystemBarParser()
+        val panelState = systemBarParser.parseTag(parserContext, parser)
+
+        assertThat(panelState).isNotNull()
+        val configurations = panelState.panelControllerMetadata?.configurations
+        assertThat(configurations).isNotNull()
+        val dragCloseAttr = SystemBarParser.DRAG_CLOSE_NOTIFICATION_ATTRIBUTE
+        assertThat(configurations?.getBoolean(dragCloseAttr)).isTrue()
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_EXT_PANEL_UPDATES)
+    fun parseSystemBar_withoutDragOpenNotification_defaultsToFalse() {
+        val xml = """
+            <SystemBar id="top" barZOrder="1" type="status">
+            </SystemBar>
+        """.trimIndent()
+
+        val factory = XmlPullParserFactory.newInstance()
+        val parser = factory.newPullParser()
+        parser.setInput(java.io.StringReader(xml))
+
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.START_TAG) {
+            eventType = parser.next()
+        }
+
+        val valueParser = ResourceValueParser()
+        val registry = XmlParserRegistry()
+
+        val parserContext = ParserEnv(context, valueParser, registry)
+        val systemBarParser = SystemBarParser()
+        val panelState = systemBarParser.parseTag(parserContext, parser)
+
+        assertThat(panelState).isNotNull()
+        val configurations = panelState.panelControllerMetadata?.configurations
+        assertThat(configurations).isNotNull()
+        val dragOpenAttr = SystemBarParser.DRAG_OPEN_NOTIFICATION_ATTRIBUTE
+        assertThat(configurations?.getBoolean(dragOpenAttr)).isFalse()
+    }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_ENABLE_EXT_PANEL_UPDATES)
+    fun parseSystemBar_withoutDragCloseNotification_defaultsToFalse() {
+        val xml = """
+            <SystemBar id="top" barZOrder="1" type="status">
+            </SystemBar>
+        """.trimIndent()
+
+        val factory = XmlPullParserFactory.newInstance()
+        val parser = factory.newPullParser()
+        parser.setInput(java.io.StringReader(xml))
+
+        var eventType = parser.eventType
+        while (eventType != XmlPullParser.START_TAG) {
+            eventType = parser.next()
+        }
+
+        val valueParser = ResourceValueParser()
+        val registry = XmlParserRegistry()
+
+        val parserContext = ParserEnv(context, valueParser, registry)
+        val systemBarParser = SystemBarParser()
+        val panelState = systemBarParser.parseTag(parserContext, parser)
+
+        assertThat(panelState).isNotNull()
+        val configurations = panelState.panelControllerMetadata?.configurations
+        assertThat(configurations).isNotNull()
+        val dragCloseAttr = SystemBarParser.DRAG_CLOSE_NOTIFICATION_ATTRIBUTE
+        assertThat(configurations?.getBoolean(dragCloseAttr)).isFalse()
+    }
 }
