@@ -51,8 +51,6 @@ import java.util.Map;
 /** Parsers {@link PanelState} from XML for SystemBar tags. */
 public class SystemBarParser implements TagParser<PanelState> {
     public static final String BAR_Z_ORDER_ATTRIBUTE = "barZOrder";
-    public static final String DRAG_OPEN_NOTIFICATION_ATTRIBUTE = "dragOpenNotification";
-    public static final String DRAG_CLOSE_NOTIFICATION_ATTRIBUTE = "dragCloseNotification";
     public static final String HIDE_FOR_KEYBOARD_ATTRIBUTE = "hideForKeyboard";
     public static final String SYSTEM_BAR_TAG = "SystemBar";
     public static final String TYPE_ATTRIBUTE = "type";
@@ -90,14 +88,6 @@ public class SystemBarParser implements TagParser<PanelState> {
                             HIDE_FOR_KEYBOARD_ATTRIBUTE,
                             (state, value) ->
                                     state.mBundle.putBoolean(HIDE_FOR_KEYBOARD_ATTRIBUTE, value))
-                    .addBoolean(
-                            DRAG_OPEN_NOTIFICATION_ATTRIBUTE,
-                            (state, value) -> state.mBundle.putBoolean(
-                                    DRAG_OPEN_NOTIFICATION_ATTRIBUTE, value))
-                    .addBoolean(
-                            DRAG_CLOSE_NOTIFICATION_ATTRIBUTE,
-                            (state, value) -> state.mBundle.putBoolean(
-                                    DRAG_CLOSE_NOTIFICATION_ATTRIBUTE, value))
                     .add(
                             BAR_Z_ORDER_ATTRIBUTE,
                             (env, value, state) -> {
