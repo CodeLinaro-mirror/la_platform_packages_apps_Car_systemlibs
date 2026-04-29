@@ -16,6 +16,8 @@
 
 package com.android.car.scalableui.loader.xml;
 
+import android.os.Build;
+
 import androidx.annotation.NonNull;
 
 import com.android.car.scalableui.Flags;
@@ -23,15 +25,20 @@ import com.android.car.scalableui.loader.xml.parser.ActionParser;
 import com.android.car.scalableui.loader.xml.parser.AlphaParser;
 import com.android.car.scalableui.loader.xml.parser.BackgroundParser;
 import com.android.car.scalableui.loader.xml.parser.BoundsParser;
+import com.android.car.scalableui.loader.xml.parser.BreakPointsParser;
+import com.android.car.scalableui.loader.xml.parser.ControllerConfigListParser;
+import com.android.car.scalableui.loader.xml.parser.ControllerConfigParser;
 import com.android.car.scalableui.loader.xml.parser.CornerIndividualParser;
 import com.android.car.scalableui.loader.xml.parser.CornerParser;
 import com.android.car.scalableui.loader.xml.parser.EventParser;
+import com.android.car.scalableui.loader.xml.parser.ExternalConfigsParser;
 import com.android.car.scalableui.loader.xml.parser.FocusParser;
 import com.android.car.scalableui.loader.xml.parser.GravityParser;
 import com.android.car.scalableui.loader.xml.parser.HunPanelParser;
 import com.android.car.scalableui.loader.xml.parser.InsetsParser;
 import com.android.car.scalableui.loader.xml.parser.KeyFrameVariantParser;
 import com.android.car.scalableui.loader.xml.parser.LayerParser;
+import com.android.car.scalableui.loader.xml.parser.PanelControllerParser;
 import com.android.car.scalableui.loader.xml.parser.PanelParser;
 import com.android.car.scalableui.loader.xml.parser.RestartParser;
 import com.android.car.scalableui.loader.xml.parser.SystemBarParser;
@@ -39,7 +46,9 @@ import com.android.car.scalableui.loader.xml.parser.TaskBehaviorParser;
 import com.android.car.scalableui.loader.xml.parser.TransitionParser;
 import com.android.car.scalableui.loader.xml.parser.VariantParser;
 import com.android.car.scalableui.loader.xml.parser.VisibilityParser;
+import com.android.car.scalableui.loader.xml.parser.XmlChildParser;
 import com.android.car.scalableui.model.GravityVariant;
+import com.android.car.scalableui.model.PanelControllerMetadata;
 import com.android.car.scalableui.model.PanelState;
 import com.android.car.scalableui.model.Variant;
 
@@ -68,13 +77,13 @@ import com.android.car.scalableui.model.Variant;
  * builder directly.
  *
  * <p>In cases where a tag is used in multiple ways, it may be registered as both. For example,
- * {@code <SafeBounds>} is registered as:
+ * {@code <Bounds>} is registered as:
  *
  * <ul>
  *   <li>A {@link TagParser} for {@code registerParser()}: Used by {@code SystemBarParser} which
  *       needs to receive the {@code Bounds} object to perform custom validation specifically for
  *       system bars.
- *   <li>An {@link XmlChildParser} for {@code Variant.Builder}: Used when {@code <SafeBounds>} is a
+ *   <li>An {@link XmlChildParser} for {@code Variant.Builder}: Used when {@code <Bounds>} is a
  *       property of a generic {@code Variant}, where it can be applied directly to the builder.
  * </ul>
  */
@@ -82,6 +91,10 @@ public class CoreParserModule implements ParserModule {
 
     @Override
     public void registerParsers(@NonNull XmlParserRegistry registry) {
+        if (Build.IS_DEBUGGABLE) {
+            registry.registerParser(
+                    ExternalConfigsParser.EXTERNAL_CONFIGS_TAG, new ExternalConfigsParser());
+        }
         registry.registerParser(PanelParser.TASK_PANEL_TAG, new PanelParser());
         registry.registerParser(PanelParser.DECOR_PANEL_TAG, new PanelParser());
         if (Flags.enableExtPanelUpdates()) {
@@ -90,13 +103,9 @@ public class CoreParserModule implements ParserModule {
         }
         registry.registerParser(ActionParser.ACTIONS_TAG, new ActionParser());
         registry.registerParser(BoundsParser.BOUNDS_TAG, new BoundsParser());
-        registry.registerParser(
-                BoundsParser.SAFE_BOUNDS_TAG, new BoundsParser(BoundsParser.SAFE_BOUNDS_TAG));
-        registry.registerParser(
-                BoundsParser.TASK_TOOLBAR_BOUNDS_TAG,
-                new BoundsParser(BoundsParser.TASK_TOOLBAR_BOUNDS_TAG));
         registry.registerParser(BackgroundParser.BACKGROUND_TAG, new BackgroundParser());
         registry.registerParser(EventParser.EVENT_TAG, new EventParser());
+        registry.registerParser(PanelControllerParser.CONTROLLER_TAG, new PanelControllerParser());
 
         // Child Parsers
         registry.registerChildParser(
@@ -143,6 +152,68 @@ public class CoreParserModule implements ParserModule {
                 Variant.Builder.class, InsetsParser.INSETS_TAG, new InsetsParser());
         registry.registerChildParser(
                 Variant.Builder.class, BackgroundParser.BACKGROUND_TAG, new BackgroundParser());
+
+        // Child parsers for PanelControllerParser
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.CONTROLLER_NAME_TAG,
+                new ControllerConfigParser(PanelControllerParser.CONTROLLER_NAME_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.VIEW_TAG,
+                new ControllerConfigParser(PanelControllerParser.VIEW_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.EVENT_ID_TAG,
+                new ControllerConfigParser(PanelControllerParser.EVENT_ID_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.OVERLAY_PANEL_ID_TAG,
+                new ControllerConfigParser(PanelControllerParser.OVERLAY_PANEL_ID_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.BACKGROUND_COLOR_TAG,
+                new ControllerConfigParser(PanelControllerParser.BACKGROUND_COLOR_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.ORIENTATION_TAG,
+                new ControllerConfigParser(PanelControllerParser.ORIENTATION_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.SNAPTHREADHOLD_TAG,
+                new ControllerConfigParser(PanelControllerParser.SNAPTHREADHOLD_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.PERSISTENT_ACTIVITY_TAG,
+                new ControllerConfigParser(PanelControllerParser.PERSISTENT_ACTIVITY_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.DEFAULT_COMPONENT_TAG,
+                new ControllerConfigParser(PanelControllerParser.DEFAULT_COMPONENT_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.DEFAULT_INTENT_TAG,
+                new ControllerConfigParser(PanelControllerParser.DEFAULT_INTENT_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.UPDATABLE_INTENT_FILTER_TAG,
+                new ControllerConfigParser(PanelControllerParser.UPDATABLE_INTENT_FILTER_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.TASK_TOOLBAR_CONTROLLER_TAG,
+                new ControllerConfigParser(PanelControllerParser.TASK_TOOLBAR_CONTROLLER_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.PERSISTENT_PACKAGE_TAG,
+                new ControllerConfigParser(PanelControllerParser.PERSISTENT_PACKAGE_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                PanelControllerParser.PERSISTENT_ACTIVITY_LIST_TAG,
+                new ControllerConfigListParser(PanelControllerParser.PERSISTENT_ACTIVITY_TAG));
+        registry.registerChildParser(
+                PanelControllerMetadata.Builder.class,
+                BreakPointsParser.BREAKPOINTS_TAG,
+                new BreakPointsParser());
 
         // SystemBar specific property parser overrides or additions
         registry.registerChildParser(
