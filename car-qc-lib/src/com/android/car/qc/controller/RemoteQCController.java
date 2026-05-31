@@ -25,6 +25,8 @@ import static com.android.car.qc.provider.BaseQCProvider.METHOD_UNSUBSCRIBE;
 
 import android.content.ContentProviderClient;
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.os.Bundle;
@@ -187,6 +189,16 @@ public class RemoteQCController extends BaseQCController {
 
     @VisibleForTesting
     ContentProviderClient getClient() {
+        String authority = mUri.getHost();
+        if (authority != null) {
+            ProviderInfo info = mContext.getPackageManager()
+                    .resolveContentProvider(authority, PackageManager.MATCH_SYSTEM_ONLY);
+            if (info == null || (!info.applicationInfo.isSystemApp()
+                    && !info.applicationInfo.isSignedWithPlatformKey())) {
+                Log.e(TAG, "Rejecting remote QC provider " + authority + " from untrusted package");
+                return null;
+            }
+        }
         ContentProviderClient client = mContext.getContentResolver()
                 .acquireContentProviderClient(mUri);
         if (client == null) {
